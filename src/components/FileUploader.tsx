@@ -10,6 +10,7 @@ import {
   type ChunkedFile,
 } from "@/lib/file-chunking";
 import { runRoundTripTest, type RoundTripResult } from "@/lib/lt-code";
+import QRSender from "@/components/QRSender";
 
 export default function FileUploader() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -34,7 +35,6 @@ export default function FileUploader() {
         const message = err instanceof Error ? err.message : "Failed to process file";
         setError(message);
         setResult(null);
-        console.error("[Fountain QR] Chunking failed:", err);
       } finally {
         setLoading(false);
       }
@@ -54,7 +54,6 @@ export default function FileUploader() {
     } catch (err) {
       const message = err instanceof Error ? err.message : "Round-trip test failed";
       setError(message);
-      console.error("[Fountain QR] Round-trip failed:", err);
     } finally {
       setTesting(false);
     }
@@ -74,75 +73,76 @@ export default function FileUploader() {
 
   return (
     <div className="w-full max-w-2xl space-y-8">
-      <div className="space-y-2">
-        <label htmlFor="block-size" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          Block size (bytes)
-        </label>
-        <div className="flex items-center gap-4">
-          <input
-            id="block-size"
-            type="range"
-            min={MIN_BLOCK_SIZE}
-            max={MAX_BLOCK_SIZE}
-            step={50}
-            value={blockSize}
-            onChange={(e) => setBlockSize(Number(e.target.value))}
-            className="h-2 flex-1 cursor-pointer accent-indigo-600"
-          />
-          <span className="w-16 text-right font-mono text-sm text-zinc-600 dark:text-zinc-400">
-            {blockSize}
-          </span>
-        </div>
-        <p className="text-xs text-zinc-500">
-          Range: {MIN_BLOCK_SIZE}–{MAX_BLOCK_SIZE} bytes per spec
-        </p>
-      </div>
+      {!result && (
+        <>
+          <div className="space-y-2">
+            <label
+              htmlFor="block-size"
+              className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+            >
+              Block size (bytes)
+            </label>
+            <div className="flex items-center gap-4">
+              <input
+                id="block-size"
+                type="range"
+                min={MIN_BLOCK_SIZE}
+                max={MAX_BLOCK_SIZE}
+                step={50}
+                value={blockSize}
+                onChange={(e) => setBlockSize(Number(e.target.value))}
+                className="h-2 flex-1 cursor-pointer accent-indigo-600"
+              />
+              <span className="w-16 text-right font-mono text-sm text-zinc-600 dark:text-zinc-400">
+                {blockSize}
+              </span>
+            </div>
+          </div>
 
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => inputRef.current?.click()}
-        onKeyDown={(e) => e.key === "Enter" && inputRef.current?.click()}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragOver(true);
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={handleDrop}
-        className={`cursor-pointer rounded-xl border-2 border-dashed px-8 py-14 text-center transition-colors ${
-          dragOver
-            ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30"
-            : "border-zinc-300 hover:border-indigo-400 dark:border-zinc-700 dark:hover:border-indigo-500"
-        }`}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          className="hidden"
-          onChange={handleFileChange}
-        />
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/50">
-          <svg
-            className="h-7 w-7 text-indigo-600 dark:text-indigo-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.5}
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => inputRef.current?.click()}
+            onKeyDown={(e) => e.key === "Enter" && inputRef.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}
+            className={`cursor-pointer rounded-xl border-2 border-dashed px-8 py-14 text-center transition-colors ${
+              dragOver
+                ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30"
+                : "border-zinc-300 hover:border-indigo-400 dark:border-zinc-700 dark:hover:border-indigo-500"
+            }`}
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
+            <input
+              ref={inputRef}
+              type="file"
+              className="hidden"
+              onChange={handleFileChange}
             />
-          </svg>
-        </div>
-        <p className="text-lg font-medium text-zinc-800 dark:text-zinc-200">
-          {loading ? "Processing file…" : "Drop a file here or click to browse"}
-        </p>
-        <p className="mt-1 text-sm text-zinc-500">
-          Any file type — results logged to browser console
-        </p>
-      </div>
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/50">
+              <svg
+                className="h-7 w-7 text-indigo-600 dark:text-indigo-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
+                />
+              </svg>
+            </div>
+            <p className="text-lg font-medium text-zinc-800 dark:text-zinc-200">
+              {loading ? "Processing file…" : "Drop a file here or click to browse"}
+            </p>
+          </div>
+        </>
+      )}
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-400">
@@ -151,65 +151,57 @@ export default function FileUploader() {
       )}
 
       {result && (
-        <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-6 dark:border-zinc-800 dark:bg-zinc-900/50">
-          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-            Chunking Result
-          </h2>
-          <dl className="grid gap-3 sm:grid-cols-2">
-            <Stat label="File name" value={result.fileName} className="sm:col-span-2" />
-            <Stat label="File size" value={formatBytes(result.fileSize)} />
-            <Stat label="Block size" value={`${result.blockSize} bytes`} />
-            <Stat label="Block count" value={String(result.blockCount)} />
-            <Stat
-              label="SHA-256"
-              value={result.hash}
-              mono
-              className="sm:col-span-2"
-            />
-          </dl>
-          <p className="mt-4 text-xs text-zinc-500">
-            Open DevTools console to see full block breakdown.
-          </p>
+        <div className="space-y-8">
+          <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-6 dark:border-zinc-800 dark:bg-zinc-900/50">
+            <div className="flex items-start justify-between gap-4">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+                File ready
+              </h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setResult(null);
+                  setRoundTrip(null);
+                }}
+                className="text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+              >
+                Choose another file
+              </button>
+            </div>
+            <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+              <Stat label="File name" value={result.fileName} className="sm:col-span-2" />
+              <Stat label="File size" value={formatBytes(result.fileSize)} />
+              <Stat label="Block size" value={`${result.blockSize} bytes`} />
+              <Stat label="Block count" value={String(result.blockCount)} />
+              <Stat
+                label="SHA-256"
+                value={result.hash}
+                mono
+                className="sm:col-span-2"
+              />
+            </dl>
 
-          <button
-            type="button"
-            onClick={() => void handleRoundTripTest()}
-            disabled={testing}
-            className="mt-4 w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {testing ? "Running LT encode → decode…" : "Run LT round-trip test"}
-          </button>
-        </div>
-      )}
+            <button
+              type="button"
+              onClick={() => void handleRoundTripTest()}
+              disabled={testing}
+              className="mt-4 text-sm font-medium text-zinc-500 underline-offset-2 hover:text-zinc-700 hover:underline disabled:opacity-60 dark:hover:text-zinc-300"
+            >
+              {testing ? "Verifying encoding…" : "Verify encoding"}
+            </button>
 
-      {roundTrip && (
-        <div
-          className={`rounded-xl border p-6 ${
-            roundTrip.hashMatch
-              ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30"
-              : "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30"
-          }`}
-        >
-          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-            LT Round-Trip Result
-          </h2>
-          <dl className="grid gap-3 sm:grid-cols-2">
-            <Stat label="Symbols generated" value={String(roundTrip.symbolCount)} />
-            <Stat
-              label="Decode status"
-              value={roundTrip.decode.success ? "Success" : "Incomplete"}
-            />
-            <Stat
-              label="Blocks resolved"
-              value={`${roundTrip.decode.resolvedBlockCount}/${roundTrip.decode.totalBlockCount}`}
-            />
-            <Stat label="Elapsed" value={`${roundTrip.elapsedMs.toFixed(1)} ms`} />
-            <Stat
-              label="Hash match"
-              value={roundTrip.hashMatch ? "✓ Identical file" : "✗ Mismatch"}
-              className="sm:col-span-2"
-            />
-          </dl>
+            {roundTrip && (
+              <p
+                className={`mt-2 text-sm ${roundTrip.hashMatch ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}
+              >
+                {roundTrip.hashMatch
+                  ? "Encoding verified — file reconstructs correctly."
+                  : "Encoding verification failed — try again."}
+              </p>
+            )}
+          </div>
+
+          <QRSender chunked={result} />
         </div>
       )}
     </div>
