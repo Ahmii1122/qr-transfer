@@ -9,12 +9,15 @@ import {
   MIN_BLOCK_SIZE,
   type ChunkedFile,
 } from "@/lib/file-chunking";
+import { runRoundTripTest, type RoundTripResult } from "@/lib/lt-code";
 
 export default function FileUploader() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [blockSize, setBlockSize] = useState(DEFAULT_BLOCK_SIZE);
   const [result, setResult] = useState<ChunkedFile | null>(null);
+  const [roundTrip, setRoundTrip] = useState<RoundTripResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -22,6 +25,7 @@ export default function FileUploader() {
     async (file: File) => {
       setLoading(true);
       setError(null);
+      setRoundTrip(null);
 
       try {
         const chunked = await chunkFile(file, blockSize);
@@ -37,6 +41,24 @@ export default function FileUploader() {
     },
     [blockSize]
   );
+
+  const handleRoundTripTest = useCallback(async () => {
+    if (!result) return;
+
+    setTesting(true);
+    setError(null);
+
+    try {
+      const testResult = await runRoundTripTest(result);
+      setRoundTrip(testResult);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Round-trip test failed";
+      setError(message);
+      console.error("[Fountain QR] Round-trip failed:", err);
+    } finally {
+      setTesting(false);
+    }
+  }, [result]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -148,6 +170,46 @@ export default function FileUploader() {
           <p className="mt-4 text-xs text-zinc-500">
             Open DevTools console to see full block breakdown.
           </p>
+
+          <button
+            type="button"
+            onClick={() => void handleRoundTripTest()}
+            disabled={testing}
+            className="mt-4 w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {testing ? "Running LT encode → decode…" : "Run LT round-trip test"}
+          </button>
+        </div>
+      )}
+
+      {roundTrip && (
+        <div
+          className={`rounded-xl border p-6 ${
+            roundTrip.hashMatch
+              ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30"
+              : "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30"
+          }`}
+        >
+          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+            LT Round-Trip Result
+          </h2>
+          <dl className="grid gap-3 sm:grid-cols-2">
+            <Stat label="Symbols generated" value={String(roundTrip.symbolCount)} />
+            <Stat
+              label="Decode status"
+              value={roundTrip.decode.success ? "Success" : "Incomplete"}
+            />
+            <Stat
+              label="Blocks resolved"
+              value={`${roundTrip.decode.resolvedBlockCount}/${roundTrip.decode.totalBlockCount}`}
+            />
+            <Stat label="Elapsed" value={`${roundTrip.elapsedMs.toFixed(1)} ms`} />
+            <Stat
+              label="Hash match"
+              value={roundTrip.hashMatch ? "✓ Identical file" : "✗ Mismatch"}
+              className="sm:col-span-2"
+            />
+          </dl>
         </div>
       )}
     </div>
