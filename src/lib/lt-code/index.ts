@@ -34,7 +34,7 @@ export async function runRoundTripTest(
     reconstructedHash = await sha256(decode.fileBytes);
   }
 
-  const result: RoundTripResult = {
+  return {
     symbolCount: symbols.length,
     decode,
     originalHash: chunked.hash,
@@ -42,26 +42,6 @@ export async function runRoundTripTest(
     hashMatch: reconstructedHash === chunked.hash,
     elapsedMs: performance.now() - start,
   };
-
-  console.log("[Fountain QR] LT round-trip test");
-  console.log("  Symbols generated:", result.symbolCount);
-  console.log("  Decode success:  ", result.decode.success);
-  console.log(
-    "  Blocks resolved: ",
-    `${result.decode.resolvedBlockCount}/${result.decode.totalBlockCount}`
-  );
-  console.log("  Original hash:   ", result.originalHash);
-  console.log("  Reconstructed:   ", result.reconstructedHash ?? "—");
-  console.log("  Hash match:      ", result.hashMatch);
-  console.log("  Elapsed:         ", `${result.elapsedMs.toFixed(1)} ms`);
-
-  if (result.hashMatch) {
-    console.log("  ✓ File reconstructed correctly in-memory");
-  } else {
-    console.warn("  ✗ Round-trip failed — try increasing symbol count");
-  }
-
-  return result;
 }
 
 /** Reconstruct indices on the receiver side from seed + degree. */

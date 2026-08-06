@@ -51,17 +51,6 @@ export async function chunkFile(
     blocks,
   };
 
-  console.log("[Fountain QR] File chunked successfully");
-  console.log("  File name:   ", result.fileName);
-  console.log("  File size:   ", result.fileSize, "bytes");
-  console.log("  Block size:  ", result.blockSize, "bytes");
-  console.log("  Block count: ", result.blockCount);
-  console.log("  SHA-256:     ", result.hash);
-  console.log(
-    "  Block sizes: ",
-    blocks.map((b) => b.length)
-  );
-
   return result;
 }
 
