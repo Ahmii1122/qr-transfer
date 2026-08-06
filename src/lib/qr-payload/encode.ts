@@ -66,19 +66,12 @@ export function encodeSymbolPayload(
   symbol: {
     seed: number;
     degree: number;
-    indices: number[];
+    blockCount: number;
     data: Uint8Array;
   }
 ): Uint8Array {
-  const totalSize =
-    4 +
-    sessionId.length +
-    4 +
-    2 +
-    2 +
-    symbol.indices.length * 2 +
-    2 +
-    symbol.data.length;
+  // Indices are omitted — receiver reproduces them from seed + degree + blockCount.
+  const totalSize = 4 + sessionId.length + 4 + 2 + 4 + 2 + symbol.data.length;
   const buffer = new Uint8Array(totalSize);
   const view = new DataView(buffer.buffer);
 
@@ -87,14 +80,8 @@ export function encodeSymbolPayload(
   offset += 4;
   writeUint16(view, offset, symbol.degree);
   offset += 2;
-  writeUint16(view, offset, symbol.indices.length);
-  offset += 2;
-
-  for (const index of symbol.indices) {
-    writeUint16(view, offset, index);
-    offset += 2;
-  }
-
+  writeUint32(view, offset, symbol.blockCount);
+  offset += 4;
   writeUint16(view, offset, symbol.data.length);
   offset += 2;
   buffer.set(symbol.data, offset);
