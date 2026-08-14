@@ -1,4 +1,4 @@
-import { SESSION_ID_BYTES } from "./constants";
+import { MAX_QR_PAYLOAD_BYTES, SESSION_ID_BYTES } from "./constants";
 
 const FRAME_OVERHEAD = 4 + SESSION_ID_BYTES;
 
@@ -6,7 +6,7 @@ const FRAME_OVERHEAD = 4 + SESSION_ID_BYTES;
 export const SYMBOL_FRAME_OVERHEAD = FRAME_OVERHEAD + 4 + 2 + 4 + 2;
 
 export function maxSymbolDataBytes(): number {
-  return 2953 - SYMBOL_FRAME_OVERHEAD;
+  return MAX_QR_PAYLOAD_BYTES - SYMBOL_FRAME_OVERHEAD;
 }
 
 export function symbolPayloadSize(dataBytes: number): number {
@@ -18,9 +18,9 @@ export function headerPayloadSize(fileNameLength: number): number {
 }
 
 export function assertPayloadFits(payload: Uint8Array, label: string): void {
-  if (payload.length > 2953) {
+  if (payload.length > MAX_QR_PAYLOAD_BYTES) {
     throw new Error(
-      `${label} payload is ${payload.length} bytes (max 2953). Reduce block size or shorten the file name.`
+      `${label} payload is ${payload.length} bytes (max ${MAX_QR_PAYLOAD_BYTES}). Reduce block size or shorten the file name.`
     );
   }
 }
