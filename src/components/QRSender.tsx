@@ -9,6 +9,7 @@ import { encodeHeaderPayload, encodeSymbolPayload } from "@/lib/qr-payload";
 import {
   createTransferSession,
   payloadToCanvas,
+  QR_BOX_STYLE,
   QR_DISPLAY_PX,
   type TransferSession,
 } from "@/lib/qr";
@@ -24,7 +25,7 @@ interface QRSenderProps {
   chunked: ChunkedFile;
 }
 
-const DEFAULT_SYMBOL_MS = 90;
+const DEFAULT_SYMBOL_MS = 200;
 const DEFAULT_HEADER_EVERY = 12;
 
 const SPEED_PRESETS = [
@@ -112,6 +113,8 @@ export default function QRSender({ chunked }: QRSenderProps) {
     if (!visible) return;
     visible.width = source.width;
     visible.height = source.height;
+    visible.style.width = QR_BOX_STYLE.width;
+    visible.style.height = QR_BOX_STYLE.height;
     const ctx = visible.getContext("2d");
     if (!ctx) return;
     ctx.imageSmoothingEnabled = false;
@@ -222,17 +225,21 @@ export default function QRSender({ chunked }: QRSenderProps) {
   };
 
   return (
-    <div className="w-full max-w-xl space-y-4">
+    <div className="w-full space-y-4">
       <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto flex items-center justify-center rounded-lg bg-white p-2">
+        <div className="mx-auto flex items-center justify-center rounded-lg bg-white">
           <canvas
             ref={canvasRef}
             width={QR_DISPLAY_PX}
             height={QR_DISPLAY_PX}
-            className={`size-[min(280px,70vw,42vh)] [image-rendering:pixelated] ${hasFrame ? "" : "hidden"}`}
+            style={QR_BOX_STYLE}
+            className={hasFrame ? "block bg-white" : "hidden"}
           />
           {!hasFrame && (
-            <div className="flex size-[min(280px,70vw,42vh)] items-center justify-center text-center text-sm text-zinc-400">
+            <div
+              style={QR_BOX_STYLE}
+              className="flex items-center justify-center text-center text-sm text-zinc-400"
+            >
               {isRunning ? "Generating QR…" : "Press Start to begin sending"}
             </div>
           )}

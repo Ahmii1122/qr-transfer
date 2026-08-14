@@ -52,7 +52,7 @@ export default function FileUploader() {
   };
 
   return (
-    <div className="w-full max-w-xl space-y-5">
+    <div className="w-full space-y-5">
       {!result && (
         <>
           <div className="text-center">

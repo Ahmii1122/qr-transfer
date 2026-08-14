@@ -16,7 +16,7 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center px-4 py-6 sm:px-6">
+      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col items-center px-3 py-3 sm:px-6">
         <FileUploader />
       </main>
     </div>

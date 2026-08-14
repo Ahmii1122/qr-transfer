@@ -130,19 +130,16 @@ export default function QRReceiver() {
       const ctx = canvas.getContext("2d", { willReadFrequently: true });
       if (!ctx || video.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA) return;
 
-      const cropRatio = 0.78;
-      const cropW = Math.max(1, Math.floor(video.videoWidth * cropRatio));
-      const cropH = Math.max(1, Math.floor(video.videoHeight * cropRatio));
-      const sx = Math.floor((video.videoWidth - cropW) / 2);
-      const sy = Math.floor((video.videoHeight - cropH) / 2);
+      const side = Math.min(video.videoWidth, video.videoHeight);
+      const crop = Math.max(1, Math.floor(side * 0.92));
+      const sx = Math.floor((video.videoWidth - crop) / 2);
+      const sy = Math.floor((video.videoHeight - crop) / 2);
 
-      const scale = Math.min(1, MAX_SCAN_DIMENSION / Math.max(cropW, cropH));
-      const scanW = Math.max(1, Math.floor(cropW * scale));
-      const scanH = Math.max(1, Math.floor(cropH * scale));
+      const scanSize = Math.min(crop, MAX_SCAN_DIMENSION);
 
-      canvas.width = scanW;
-      canvas.height = scanH;
-      ctx.drawImage(video, sx, sy, cropW, cropH, 0, 0, scanW, scanH);
+      canvas.width = scanSize;
+      canvas.height = scanSize;
+      ctx.drawImage(video, sx, sy, crop, crop, 0, 0, scanSize, scanSize);
 
       const now = performance.now();
       scanStatsRef.current.captureTimes.push(now);
@@ -151,7 +148,7 @@ export default function QRReceiver() {
       }
       scanStatsRef.current.scansAttempted += 1;
 
-      const imageData = ctx.getImageData(0, 0, scanW, scanH);
+      const imageData = ctx.getImageData(0, 0, scanSize, scanSize);
       const code = tryDecodeQr(imageData.data, imageData.width, imageData.height);
 
       if (code) {
@@ -295,7 +292,7 @@ export default function QRReceiver() {
           playsInline
           muted
           autoPlay
-          className="aspect-[3/4] w-full object-cover"
+          className="aspect-square w-full object-cover"
         />
         <canvas ref={canvasRef} className="hidden" />
         {!isScanning && (
@@ -303,8 +300,8 @@ export default function QRReceiver() {
             Start scanning and fill the square with the sender QR code
           </div>
         )}
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="h-[min(72vw,18rem)] w-[min(72vw,18rem)] rounded-xl border-2 border-white/70 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-[4%]">
+          <div className="h-full w-full rounded-xl border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.28)]" />
         </div>
       </div>
 

@@ -3,6 +3,7 @@ export {
   payloadToDataUrl,
   qrRenderWidth,
   QR_DISPLAY_PX,
+  QR_BOX_STYLE,
 } from "./generate";
 export {
   extractPayloadBytes,

@@ -1,12 +1,19 @@
 import QRCode from "qrcode";
 import { assertPayloadFits } from "@/lib/qr-payload";
 
-/** On-screen QR size. Kept modest so the code stays fully visible. */
-export const QR_DISPLAY_PX = 280;
+/** High-res bitmap so modules stay sharp when shown large on screen. */
+export const QR_DISPLAY_PX = 720;
+
+/** Inline CSS — Tailwind arbitrary `min()` with commas is dropped, which shrank the QR. */
+export const QR_BOX_STYLE = {
+  width: "min(720px, 92vw, calc(100dvh - 13rem))",
+  height: "min(720px, 92vw, calc(100dvh - 13rem))",
+  imageRendering: "pixelated",
+} as const;
 
 const QR_OPTIONS: QRCode.QRCodeToDataURLOptions = {
   errorCorrectionLevel: "L",
-  margin: 2,
+  margin: 4,
   width: QR_DISPLAY_PX,
 };
 
