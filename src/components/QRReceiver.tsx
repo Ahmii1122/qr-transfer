@@ -15,7 +15,7 @@ interface ScanStats {
 }
 
 const MAX_SCAN_DIMENSION = 960;
-const SCAN_INTERVAL_MS = 50;
+const SCAN_INTERVAL_MS = 30;
 
 interface NativeBarcodeDetector {
   detect(image: ImageBitmapSource): Promise<Array<{ rawValue: string }>>;

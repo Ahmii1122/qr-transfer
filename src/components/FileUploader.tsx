@@ -10,16 +10,13 @@ import {
   MIN_BLOCK_SIZE,
   type ChunkedFile,
 } from "@/lib/file-chunking";
-import { runRoundTripTest, type RoundTripResult } from "@/lib/lt-code";
 import QRSender from "@/components/QRSender";
 
 export default function FileUploader() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [blockSize, setBlockSize] = useState(DEFAULT_BLOCK_SIZE);
   const [result, setResult] = useState<ChunkedFile | null>(null);
-  const [roundTrip, setRoundTrip] = useState<RoundTripResult | null>(null);
   const [loading, setLoading] = useState(false);
-  const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -27,7 +24,6 @@ export default function FileUploader() {
     async (file: File) => {
       setLoading(true);
       setError(null);
-      setRoundTrip(null);
 
       try {
         const chunked = await chunkFile(file, blockSize);
@@ -43,23 +39,6 @@ export default function FileUploader() {
     [blockSize]
   );
 
-  const handleRoundTripTest = useCallback(async () => {
-    if (!result) return;
-
-    setTesting(true);
-    setError(null);
-
-    try {
-      const testResult = await runRoundTripTest(result);
-      setRoundTrip(testResult);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Round-trip test failed";
-      setError(message);
-    } finally {
-      setTesting(false);
-    }
-  }, [result]);
-
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) void processFile(file);
@@ -73,9 +52,17 @@ export default function FileUploader() {
   };
 
   return (
-    <div className="w-full max-w-3xl space-y-8">
+    <div className="w-full max-w-xl space-y-5">
       {!result && (
         <>
+          <div className="text-center">
+            <h2 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
+              Select a file to send
+            </h2>
+            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+              Upload a file, then start the live QR stream. Open Receive on your phone.
+            </p>
+          </div>
           <div className="space-y-3">
             <div>
               <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
@@ -175,82 +162,30 @@ export default function FileUploader() {
       )}
 
       {result && (
-        <div className="space-y-8">
-          <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-6 dark:border-zinc-800 dark:bg-zinc-900/50">
-            <div className="flex items-start justify-between gap-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-                File ready
-              </h2>
+        <div className="space-y-4">
+          <QRSender chunked={result} />
+
+          <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+            <div className="flex items-center justify-between gap-3">
+              <p className="truncate text-sm text-zinc-700 dark:text-zinc-200">
+                {result.fileName}{" "}
+                <span className="text-zinc-500">
+                  · {formatBytes(result.fileSize)} · {result.blockSize} B/frame
+                </span>
+              </p>
               <button
                 type="button"
                 onClick={() => {
                   setResult(null);
-                  setRoundTrip(null);
                 }}
-                className="text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+                className="shrink-0 text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
               >
-                Choose another file
+                Change file
               </button>
             </div>
-            <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-              <Stat label="File name" value={result.fileName} className="sm:col-span-2" />
-              <Stat label="File size" value={formatBytes(result.fileSize)} />
-              <Stat label="Block size" value={`${result.blockSize} bytes`} />
-              <Stat label="Block count" value={String(result.blockCount)} />
-              <Stat
-                label="SHA-256"
-                value={result.hash}
-                mono
-                className="sm:col-span-2"
-              />
-            </dl>
-
-            <button
-              type="button"
-              onClick={() => void handleRoundTripTest()}
-              disabled={testing}
-              className="mt-4 text-sm font-medium text-zinc-500 underline-offset-2 hover:text-zinc-700 hover:underline disabled:opacity-60 dark:hover:text-zinc-300"
-            >
-              {testing ? "Verifying encoding…" : "Verify encoding"}
-            </button>
-
-            {roundTrip && (
-              <p
-                className={`mt-2 text-sm ${roundTrip.hashMatch ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}
-              >
-                {roundTrip.hashMatch
-                  ? "Encoding verified — file reconstructs correctly."
-                  : "Encoding verification failed — try again."}
-              </p>
-            )}
           </div>
-
-          <QRSender chunked={result} />
         </div>
       )}
-    </div>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  mono = false,
-  className = "",
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-  className?: string;
-}) {
-  return (
-    <div className={className}>
-      <dt className="text-xs font-medium text-zinc-500">{label}</dt>
-      <dd
-        className={`mt-0.5 text-sm text-zinc-900 dark:text-zinc-100 ${mono ? "break-all font-mono text-xs" : ""}`}
-      >
-        {value}
-      </dd>
     </div>
   );
 }

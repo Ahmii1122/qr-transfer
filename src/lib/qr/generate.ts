@@ -1,33 +1,31 @@
 import QRCode from "qrcode";
 import { assertPayloadFits } from "@/lib/qr-payload";
 
-/** Render denser payloads larger so each module stays camera-readable. */
-export function qrRenderWidth(payloadBytes: number): number {
-  if (payloadBytes > 2000) return 880;
-  if (payloadBytes > 1000) return 720;
-  return 512;
-}
+/** On-screen QR size. Kept modest so the code stays fully visible. */
+export const QR_DISPLAY_PX = 280;
 
-function qrOptions(payloadBytes: number): QRCode.QRCodeToDataURLOptions {
-  return {
-    errorCorrectionLevel: "L",
-    margin: 4,
-    width: qrRenderWidth(payloadBytes),
-  };
+const QR_OPTIONS: QRCode.QRCodeToDataURLOptions = {
+  errorCorrectionLevel: "L",
+  margin: 2,
+  width: QR_DISPLAY_PX,
+};
+
+export function qrRenderWidth(_payloadBytes?: number): number {
+  return QR_DISPLAY_PX;
 }
 
 export async function payloadToDataUrl(payload: Uint8Array): Promise<string> {
   assertPayloadFits(payload, "QR");
-  return QRCode.toDataURL([{ data: payload, mode: "byte" }], qrOptions(payload.length));
+  return QRCode.toDataURL([{ data: payload, mode: "byte" }], QR_OPTIONS);
 }
 
 export async function payloadToCanvas(
   canvas: HTMLCanvasElement,
   payload: Uint8Array
 ): Promise<void> {
-  await QRCode.toCanvas(
-    canvas,
-    [{ data: payload, mode: "byte" }],
-    { ...qrOptions(payload.length), width: canvas.width || qrRenderWidth(payload.length) }
-  );
+  assertPayloadFits(payload, "QR");
+  await QRCode.toCanvas(canvas, [{ data: payload, mode: "byte" }], {
+    ...QR_OPTIONS,
+    width: QR_DISPLAY_PX,
+  });
 }

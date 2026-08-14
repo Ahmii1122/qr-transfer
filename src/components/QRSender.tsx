@@ -6,7 +6,12 @@ import { formatBytes } from "@/lib/file-chunking";
 import { LTEncoder } from "@/lib/lt-code";
 import { estimateSymbolsNeeded } from "@/lib/receiver";
 import { encodeHeaderPayload, encodeSymbolPayload } from "@/lib/qr-payload";
-import { createTransferSession, payloadToDataUrl, type TransferSession } from "@/lib/qr";
+import {
+  createTransferSession,
+  payloadToCanvas,
+  QR_DISPLAY_PX,
+  type TransferSession,
+} from "@/lib/qr";
 
 interface SenderStats {
   sessionIdHex: string;
@@ -19,13 +24,14 @@ interface QRSenderProps {
   chunked: ChunkedFile;
 }
 
-const DEFAULT_SYMBOL_MS = 350;
-const DEFAULT_HEADER_EVERY = 5;
+const DEFAULT_SYMBOL_MS = 90;
+const DEFAULT_HEADER_EVERY = 12;
 
 const SPEED_PRESETS = [
-  { label: "Fast", symbolMs: 200 },
-  { label: "Balanced", symbolMs: 600 },
-  { label: "Safe", symbolMs: 1500 },
+  { label: "Turbo", symbolMs: 50 },
+  { label: "Fast", symbolMs: 90 },
+  { label: "Balanced", symbolMs: 160 },
+  { label: "Safe", symbolMs: 400 },
 ] as const;
 
 function sleep(ms: number): Promise<void> {
@@ -36,10 +42,12 @@ export default function QRSender({ chunked }: QRSenderProps) {
   const [isRunning, setIsRunning] = useState(false);
   const [symbolDurationMs, setSymbolDurationMs] = useState(DEFAULT_SYMBOL_MS);
   const [headerEvery, setHeaderEvery] = useState(DEFAULT_HEADER_EVERY);
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [hasFrame, setHasFrame] = useState(false);
   const [stats, setStats] = useState<SenderStats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const scratchRef = useRef<HTMLCanvasElement | null>(null);
   const sessionRef = useRef<TransferSession>(createTransferSession());
   const encoderRef = useRef<LTEncoder | null>(null);
   const symbolsSentRef = useRef(0);
@@ -59,29 +67,31 @@ export default function QRSender({ chunked }: QRSenderProps) {
     sessionRef.current = createTransferSession();
     encoderRef.current = new LTEncoder(chunked.blocks, chunked.blockSize);
     symbolsSentRef.current = 0;
-    setQrDataUrl(null);
+    setHasFrame(false);
     setStats(null);
     setError(null);
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext("2d");
+      ctx?.clearRect(0, 0, canvas.width, canvas.height);
+    }
   }, [chunked]);
 
   useEffect(() => {
     resetSession();
   }, [resetSession]);
 
-  const emitHeader = useCallback(async () => {
-    const session = sessionRef.current;
-    const payload = encodeHeaderPayload(session.sessionId, {
+  const makeHeaderPayload = useCallback(() => {
+    return encodeHeaderPayload(sessionRef.current.sessionId, {
       fileName: chunked.fileName,
       fileSize: chunked.fileSize,
       blockCount: chunked.blockCount,
       blockSize: chunked.blockSize,
       hash: chunked.hash,
     });
-    const url = await payloadToDataUrl(payload);
-    return { url, kind: "header" as const };
   }, [chunked]);
 
-  const emitSymbol = useCallback(async () => {
+  const makeSymbolPayload = useCallback(() => {
     if (!encoderRef.current) {
       encoderRef.current = new LTEncoder(chunked.blocks, chunked.blockSize);
     }
@@ -89,15 +99,25 @@ export default function QRSender({ chunked }: QRSenderProps) {
     const symbol = encoderRef.current.next();
     symbolsSentRef.current += 1;
 
-    const payload = encodeSymbolPayload(sessionRef.current.sessionId, {
+    return encodeSymbolPayload(sessionRef.current.sessionId, {
       seed: symbol.seed,
       degree: symbol.degree,
       blockCount: chunked.blockCount,
       data: symbol.data,
     });
-    const url = await payloadToDataUrl(payload);
-    return { url, kind: "symbol" as const };
   }, [chunked]);
+
+  const blitToVisible = useCallback((source: HTMLCanvasElement) => {
+    const visible = canvasRef.current;
+    if (!visible) return;
+    visible.width = source.width;
+    visible.height = source.height;
+    const ctx = visible.getContext("2d");
+    if (!ctx) return;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(source, 0, 0);
+    setHasFrame((shown) => shown || true);
+  }, []);
 
   useEffect(() => {
     if (!isRunning) {
@@ -110,40 +130,53 @@ export default function QRSender({ chunked }: QRSenderProps) {
     let cancelled = false;
 
     const runLoop = async () => {
+      const scratch = scratchRef.current ?? document.createElement("canvas");
+      scratchRef.current = scratch;
       let headerPending = true;
 
-      while (runningRef.current && !cancelled) {
-        try {
-          let frame: { url: string; kind: "header" | "symbol" };
+      const prepare = async (kind: "header" | "symbol") => {
+        const payload = kind === "header" ? makeHeaderPayload() : makeSymbolPayload();
+        await payloadToCanvas(scratch, payload);
+        return kind;
+      };
 
-          if (headerPending) {
-            frame = await emitHeader();
-            headerPending = false;
-          } else {
-            frame = await emitSymbol();
-            if (symbolsSentRef.current % headerEveryRef.current === 0) {
-              headerPending = true;
-            }
-          }
+      try {
+        let nextKind = await prepare("header");
+        headerPending = false;
 
-          if (cancelled || !runningRef.current) break;
-
-          setQrDataUrl(frame.url);
+        while (runningRef.current && !cancelled) {
+          const shownAt = performance.now();
+          blitToVisible(scratch);
           setStats({
             sessionIdHex: sessionRef.current.sessionIdHex,
             elapsedSec: (Date.now() - sessionRef.current.startedAt) / 1000,
             symbolsSent: symbolsSentRef.current,
-            frameType: frame.kind,
+            frameType: nextKind,
           });
 
-          await sleep(symbolDurationRef.current);
-        } catch (err) {
-          if (!cancelled) {
-            setError(err instanceof Error ? err.message : "Failed to generate QR frame");
-            setIsRunning(false);
-            runningRef.current = false;
+          const upcoming: "header" | "symbol" = headerPending ? "header" : "symbol";
+          if (upcoming === "header") headerPending = false;
+
+          const nextPrepare = prepare(upcoming);
+          if (
+            upcoming === "symbol" &&
+            symbolsSentRef.current % headerEveryRef.current === 0
+          ) {
+            headerPending = true;
           }
-          break;
+
+          const elapsed = performance.now() - shownAt;
+          const wait = Math.max(0, symbolDurationRef.current - elapsed);
+          const [, kind] = await Promise.all([sleep(wait), nextPrepare]);
+          nextKind = kind;
+
+          if (cancelled || !runningRef.current) break;
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to generate QR frame");
+          setIsRunning(false);
+          runningRef.current = false;
         }
       }
     };
@@ -154,7 +187,7 @@ export default function QRSender({ chunked }: QRSenderProps) {
       cancelled = true;
       runningRef.current = false;
     };
-  }, [isRunning, emitHeader, emitSymbol]);
+  }, [isRunning, makeHeaderPayload, makeSymbolPayload, blitToVisible]);
 
   useEffect(() => {
     if (!isRunning) return;
@@ -189,38 +222,36 @@ export default function QRSender({ chunked }: QRSenderProps) {
   };
 
   return (
-    <div className="w-full max-w-3xl space-y-6">
-      <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="flex aspect-square items-center justify-center rounded-lg bg-white p-2 sm:p-4">
-          {qrDataUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={qrDataUrl}
-              alt="Live transfer QR code"
-              className="h-full w-full max-w-[880px] object-contain"
-            />
-          ) : (
-            <div className="text-center text-sm text-zinc-400">
+    <div className="w-full max-w-xl space-y-4">
+      <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="mx-auto flex items-center justify-center rounded-lg bg-white p-2">
+          <canvas
+            ref={canvasRef}
+            width={QR_DISPLAY_PX}
+            height={QR_DISPLAY_PX}
+            className={`size-[min(280px,70vw,42vh)] [image-rendering:pixelated] ${hasFrame ? "" : "hidden"}`}
+          />
+          {!hasFrame && (
+            <div className="flex size-[min(280px,70vw,42vh)] items-center justify-center text-center text-sm text-zinc-400">
               {isRunning ? "Generating QR…" : "Press Start to begin sending"}
             </div>
           )}
         </div>
 
         {stats && (
-          <dl className="mt-4 grid gap-3 border-t border-zinc-100 pt-4 sm:grid-cols-2 dark:border-zinc-800">
-            <Stat label="Session ID" value={stats.sessionIdHex} mono className="sm:col-span-2" />
+          <dl className="mt-3 grid grid-cols-2 gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
             <Stat label="Elapsed" value={`${stats.elapsedSec.toFixed(1)}s`} />
-            <Stat label="Unique symbols sent" value={`${stats.symbolsSent} / ~${symbolsNeeded}`} />
+            <Stat label="Symbols sent" value={`${stats.symbolsSent} / ~${symbolsNeeded}`} />
             <Stat
-              label="Frame type"
+              label="Frame"
               value={stats.frameType === "header" ? "Metadata" : "Symbol"}
-              className="sm:col-span-2"
             />
+            <Stat label="Est. rate" value={`~${kbps} KB/s`} />
           </dl>
         )}
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div className="flex flex-wrap gap-2">
           {SPEED_PRESETS.map((preset) => (
             <button
@@ -239,23 +270,15 @@ export default function QRSender({ chunked }: QRSenderProps) {
           ))}
         </div>
 
-        {chunked.blockSize >= 2000 && (
-          <p className="text-xs text-amber-700 dark:text-amber-400">
-            Dense Version 40 codes need the phone close, the screen bright, and usually Balanced
-            or Safe display time — Fast often misses frames.
-          </p>
-        )}
-
         <label className="block space-y-2">
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Symbol display time ({symbolDurationMs} ms) · ~{symbolsPerSec} frames/sec · ~{kbps}{" "}
-            KB/s · est. {etaSec}s for full send
+            Frame time {symbolDurationMs} ms · ~{symbolsPerSec}/s · est. {etaSec}s
           </span>
           <input
             type="range"
-            min={100}
-            max={2000}
-            step={50}
+            min={40}
+            max={800}
+            step={10}
             value={symbolDurationMs}
             onChange={(e) => setSymbolDurationMs(Number(e.target.value))}
             disabled={isRunning}
@@ -269,8 +292,8 @@ export default function QRSender({ chunked }: QRSenderProps) {
           </span>
           <input
             type="range"
-            min={3}
-            max={30}
+            min={5}
+            max={40}
             step={1}
             value={headerEvery}
             onChange={(e) => setHeaderEvery(Number(e.target.value))}
@@ -324,22 +347,16 @@ export default function QRSender({ chunked }: QRSenderProps) {
 function Stat({
   label,
   value,
-  mono = false,
   className = "",
 }: {
   label: string;
   value: string;
-  mono?: boolean;
   className?: string;
 }) {
   return (
     <div className={className}>
       <dt className="text-xs font-medium text-zinc-500">{label}</dt>
-      <dd
-        className={`mt-0.5 text-sm text-zinc-900 dark:text-zinc-100 ${mono ? "break-all font-mono text-xs" : ""}`}
-      >
-        {value}
-      </dd>
+      <dd className="mt-0.5 text-sm text-zinc-900 dark:text-zinc-100">{value}</dd>
     </div>
   );
 }

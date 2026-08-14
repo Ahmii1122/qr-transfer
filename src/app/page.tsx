@@ -5,7 +5,7 @@ export default function Home() {
   return (
     <div className="flex min-h-full flex-col bg-zinc-50 dark:bg-zinc-950">
       <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3 sm:px-6">
           <div>
             <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
               Fountain QR
@@ -16,17 +16,7 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center px-6 py-12">
-        <div className="mb-10 max-w-xl text-center">
-          <h2 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
-            Select a file to send
-          </h2>
-          <p className="mt-2 text-zinc-600 dark:text-zinc-400">
-            Upload a file, then start the live QR stream. Open the Receive page
-            on your phone to scan and reconstruct the file.
-          </p>
-        </div>
-
+      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center px-4 py-6 sm:px-6">
         <FileUploader />
       </main>
     </div>

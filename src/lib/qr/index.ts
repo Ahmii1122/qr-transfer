@@ -1,4 +1,9 @@
-export { payloadToCanvas, payloadToDataUrl, qrRenderWidth } from "./generate";
+export {
+  payloadToCanvas,
+  payloadToDataUrl,
+  qrRenderWidth,
+  QR_DISPLAY_PX,
+} from "./generate";
 export {
   extractPayloadBytes,
   isFountainPayload,
