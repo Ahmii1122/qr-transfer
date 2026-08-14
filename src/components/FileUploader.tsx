@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import {
   chunkFile,
   DEFAULT_BLOCK_SIZE,
+  DENSITY_PRESETS,
   formatBytes,
   MAX_BLOCK_SIZE,
   MIN_BLOCK_SIZE,
@@ -72,17 +73,39 @@ export default function FileUploader() {
   };
 
   return (
-    <div className="w-full max-w-2xl space-y-8">
+    <div className="w-full max-w-3xl space-y-8">
       {!result && (
         <>
-          <div className="space-y-2">
-            <label
-              htmlFor="block-size"
-              className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
-            >
-              Block size (bytes)
-            </label>
-            <div className="flex items-center gap-4">
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                QR density
+              </p>
+              <p className="mt-1 text-xs text-zinc-500">
+                Larger codes pack more bytes per frame. Dense needs a close, bright camera.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {DENSITY_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => setBlockSize(preset.blockSize)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                    blockSize === preset.blockSize
+                      ? "bg-indigo-600 text-white"
+                      : "border border-zinc-300 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400"
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+            <label htmlFor="block-size" className="block space-y-2">
+              <span className="flex items-center justify-between text-sm text-zinc-600 dark:text-zinc-400">
+                <span>Bytes per QR frame</span>
+                <span className="font-mono text-zinc-800 dark:text-zinc-200">{blockSize}</span>
+              </span>
               <input
                 id="block-size"
                 type="range"
@@ -91,12 +114,13 @@ export default function FileUploader() {
                 step={50}
                 value={blockSize}
                 onChange={(e) => setBlockSize(Number(e.target.value))}
-                className="h-2 flex-1 cursor-pointer accent-indigo-600"
+                className="h-2 w-full cursor-pointer accent-indigo-600"
               />
-              <span className="w-16 text-right font-mono text-sm text-zinc-600 dark:text-zinc-400">
-                {blockSize}
-              </span>
-            </div>
+            </label>
+            <p className="text-xs text-zinc-500">
+              {DENSITY_PRESETS.find((preset) => preset.blockSize === blockSize)?.hint ??
+                "Custom size — bigger is faster if the camera can still decode it."}
+            </p>
           </div>
 
           <div
