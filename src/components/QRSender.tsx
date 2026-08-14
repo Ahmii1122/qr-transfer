@@ -50,6 +50,7 @@ export default function QRSender({ chunked }: QRSenderProps) {
   const symbolsNeeded = estimateSymbolsNeeded(chunked.blockCount);
   const symbolsPerSec = (1000 / symbolDurationMs).toFixed(1);
   const etaSec = Math.ceil((symbolsNeeded * symbolDurationMs) / 1000);
+  const kbps = ((chunked.blockSize * (1000 / symbolDurationMs)) / 1024).toFixed(1);
 
   symbolDurationRef.current = symbolDurationMs;
   headerEveryRef.current = headerEvery;
@@ -188,15 +189,15 @@ export default function QRSender({ chunked }: QRSenderProps) {
   };
 
   return (
-    <div className="w-full max-w-2xl space-y-6">
+    <div className="w-full max-w-3xl space-y-6">
       <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="flex aspect-square items-center justify-center rounded-lg bg-white p-4">
+        <div className="flex aspect-square items-center justify-center rounded-lg bg-white p-2 sm:p-4">
           {qrDataUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={qrDataUrl}
               alt="Live transfer QR code"
-              className="h-full w-full max-w-[480px] object-contain"
+              className="h-full w-full max-w-[880px] object-contain"
             />
           ) : (
             <div className="text-center text-sm text-zinc-400">
@@ -238,10 +239,17 @@ export default function QRSender({ chunked }: QRSenderProps) {
           ))}
         </div>
 
+        {chunked.blockSize >= 2000 && (
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            Dense Version 40 codes need the phone close, the screen bright, and usually Balanced
+            or Safe display time — Fast often misses frames.
+          </p>
+        )}
+
         <label className="block space-y-2">
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Symbol display time ({symbolDurationMs} ms) · ~{symbolsPerSec} symbols/sec · est.{" "}
-            {etaSec}s for full send
+            Symbol display time ({symbolDurationMs} ms) · ~{symbolsPerSec} frames/sec · ~{kbps}{" "}
+            KB/s · est. {etaSec}s for full send
           </span>
           <input
             type="range"
@@ -300,8 +308,8 @@ export default function QRSender({ chunked }: QRSenderProps) {
       </div>
 
       <p className="text-xs text-zinc-500">
-        {chunked.fileName} ({formatBytes(chunked.fileSize)}) · {chunked.blockCount} blocks · ~{" "}
-        {symbolsNeeded} symbols needed on receiver
+        {chunked.fileName} ({formatBytes(chunked.fileSize)}) · {chunked.blockCount} blocks ×{" "}
+        {chunked.blockSize} B · ~{symbolsNeeded} symbols needed on receiver
       </p>
 
       {error && (

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import jsQR from "jsqr";
-import { parseQrResult } from "@/lib/qr";
+import { parseQrResult, parseQrText } from "@/lib/qr";
 import { ReceiverStore, type ReceiverSnapshot } from "@/lib/receiver";
 import ReceivedFilePreview from "@/components/ReceivedFilePreview";
 
@@ -14,8 +14,24 @@ interface ScanStats {
   validFrames: number;
 }
 
-const MAX_SCAN_DIMENSION = 400;
+const MAX_SCAN_DIMENSION = 960;
 const SCAN_INTERVAL_MS = 50;
+
+interface NativeBarcodeDetector {
+  detect(image: ImageBitmapSource): Promise<Array<{ rawValue: string }>>;
+}
+
+type BarcodeDetectorCtor = new (options?: { formats: string[] }) => NativeBarcodeDetector;
+
+function getBarcodeDetector(): NativeBarcodeDetector | null {
+  const Ctor = (globalThis as { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector;
+  if (!Ctor) return null;
+  try {
+    return new Ctor({ formats: ["qr_code"] });
+  } catch {
+    return null;
+  }
+}
 
 function tryDecodeQr(
   data: Uint8ClampedArray,
@@ -43,6 +59,7 @@ export default function QRReceiver() {
   const storeRef = useRef(new ReceiverStore());
   const runningRef = useRef(false);
   const scanningRef = useRef(false);
+  const detectorRef = useRef<NativeBarcodeDetector | null>(null);
   const scanStatsRef = useRef({
     captureTimes: [] as number[],
     decodeTimes: [] as number[],
@@ -74,13 +91,8 @@ export default function QRReceiver() {
     }
   }, []);
 
-  const processQrResult = useCallback(
-    (result: NonNullable<ReturnType<typeof jsQR>>) => {
-      scanStatsRef.current.qrDetections += 1;
-
-      const parsed = parseQrResult(result);
-      if (!parsed) return;
-
+  const ingestParsed = useCallback(
+    (parsed: NonNullable<ReturnType<typeof parseQrResult>>) => {
       const store = storeRef.current;
       if (parsed.kind === "header") {
         store.ingestHeader(parsed);
@@ -104,7 +116,11 @@ export default function QRReceiver() {
     if (!runningRef.current || scanningRef.current) return;
     scanningRef.current = true;
 
-    try {
+    const finish = () => {
+      scanningRef.current = false;
+    };
+
+    const run = async () => {
       const video = videoRef.current;
       const canvas = canvasRef.current;
       if (!video || !canvas) return;
@@ -114,7 +130,7 @@ export default function QRReceiver() {
       const ctx = canvas.getContext("2d", { willReadFrequently: true });
       if (!ctx || video.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA) return;
 
-      const cropRatio = 0.7;
+      const cropRatio = 0.78;
       const cropW = Math.max(1, Math.floor(video.videoWidth * cropRatio));
       const cropH = Math.max(1, Math.floor(video.videoHeight * cropRatio));
       const sx = Math.floor((video.videoWidth - cropW) / 2);
@@ -139,7 +155,24 @@ export default function QRReceiver() {
       const code = tryDecodeQr(imageData.data, imageData.width, imageData.height);
 
       if (code) {
-        processQrResult(code);
+        scanStatsRef.current.qrDetections += 1;
+        const parsed = parseQrResult(code);
+        if (parsed) ingestParsed(parsed);
+      } else {
+        const detector = detectorRef.current;
+        if (detector) {
+          try {
+            const barcodes = await detector.detect(canvas);
+            const rawValue = barcodes[0]?.rawValue;
+            if (rawValue) {
+              scanStatsRef.current.qrDetections += 1;
+              const parsed = parseQrText(rawValue);
+              if (parsed) ingestParsed(parsed);
+            }
+          } catch {
+            // Native detector can throw on unsupported frames.
+          }
+        }
       }
 
       const captureTimes = scanStatsRef.current.captureTimes;
@@ -162,22 +195,23 @@ export default function QRReceiver() {
         qrDetections: scanStatsRef.current.qrDetections,
         validFrames: scanStatsRef.current.validFrames,
       });
-    } finally {
-      scanningRef.current = false;
-    }
-  }, [processQrResult]);
+    };
+
+    void run().finally(finish);
+  }, [ingestParsed]);
 
   const startCamera = useCallback(async () => {
     setCameraError(null);
     setCompletedFile(null);
     setHashVerified(false);
+    detectorRef.current = getBarcodeDetector();
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: "environment" },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
         },
         audio: false,
       });
@@ -270,7 +304,7 @@ export default function QRReceiver() {
           </div>
         )}
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="h-56 w-56 rounded-xl border-2 border-white/70 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+          <div className="h-[min(72vw,18rem)] w-[min(72vw,18rem)] rounded-xl border-2 border-white/70 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
         </div>
       </div>
 
@@ -309,8 +343,8 @@ export default function QRReceiver() {
 
       {noQrDetected && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
-          No QR detected. Move closer, increase screen brightness, or switch sender to Safe
-          mode if using Fast.
+          No QR detected. Fill the square with the code, raise screen brightness, hold still, or
+          switch the sender to Compact / Safe if using Dense + Fast.
         </div>
       )}
 
