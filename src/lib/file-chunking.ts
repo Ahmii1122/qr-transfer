@@ -1,8 +1,32 @@
-/** Default block size in bytes (within spec range 200–1000). */
+import { maxSymbolDataBytes } from "@/lib/qr-payload/limits";
+
+/** Compact default — easier for phone cameras than a full Version 40 QR. */
 export const DEFAULT_BLOCK_SIZE = 512;
 
 export const MIN_BLOCK_SIZE = 200;
-export const MAX_BLOCK_SIZE = 1000;
+/** Max fountain block that still fits a Version 40 QR (ECC L) after frame overhead. */
+export const MAX_BLOCK_SIZE = maxSymbolDataBytes();
+
+export const DENSITY_PRESETS = [
+  {
+    id: "compact",
+    label: "Compact",
+    blockSize: 512,
+    hint: "Smaller QR, easiest to scan",
+  },
+  {
+    id: "balanced",
+    label: "Balanced",
+    blockSize: 1200,
+    hint: "More data per frame",
+  },
+  {
+    id: "dense",
+    label: "Dense (v40)",
+    blockSize: MAX_BLOCK_SIZE,
+    hint: "Max QR capacity — fill the camera frame",
+  },
+] as const;
 
 export interface ChunkedFile {
   fileName: string;
