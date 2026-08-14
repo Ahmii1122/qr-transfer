@@ -60,6 +60,10 @@ export function parseQrResult(result: JsQrResult): ParsedFrame | null {
   return parsePayload(bytes);
 }
 
+export function parseQrText(text: string): ParsedFrame | null {
+  return parsePayload(latin1ToBytes(text));
+}
+
 export function isFountainPayload(bytes: Uint8Array): boolean {
   if (bytes.length < 2) return false;
   const magic = (bytes[0] << 8) | bytes[1];
